@@ -19,12 +19,10 @@ function BigButton({ to, tone, children }: { to: string; tone: 'blue' | 'amber';
 export default function TemplatesChooser() {
   return (
     <Layout>
-      <div className="h-full min-h-[420px] flex flex-col">
-        <div className="flex-1 flex items-center justify-center">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <BigButton to={`${TEMPLATES_ROOT}/normal`} tone="blue">{CATEGORY_LABEL.normal}</BigButton>
-            <BigButton to={`${TEMPLATES_ROOT}/pathology`} tone="amber">{CATEGORY_LABEL.pathology}</BigButton>
-          </div>
+      <div className="h-full min-h-[300px] flex items-center justify-center">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <BigButton to={`${TEMPLATES_ROOT}/normal`} tone="blue">{CATEGORY_LABEL.normal}</BigButton>
+          <BigButton to={`${TEMPLATES_ROOT}/pathology`} tone="amber">{CATEGORY_LABEL.pathology}</BigButton>
         </div>
       </div>
     </Layout>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, ChevronDown, ChevronRight, Pencil, Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Copy, Pencil, Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import Layout from '@/components/Layout';
 import { CATEGORY_LABEL, TEMPLATES_ROOT, TEMPLATES_TABLE, isCategory, type Category } from '@/lib/templates';
@@ -108,6 +108,9 @@ function Editor({ category }: { category: Category }) {
   const [adding, setAdding] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [dragKey, setDragKey] = useState<string | null>(null);
+  const [overKey, setOverKey] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -270,6 +273,75 @@ function Editor({ category }: { category: Category }) {
     toast.success('Шаблон удалён');
   };
 
+  const copyText = async () => {
+    if (!view) return;
+    try {
+      await navigator.clipboard.writeText(view.text[lang]);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1000);
+    } catch {
+      toast.error('Не удалось скопировать');
+    }
+  };
+
+  // Drag & drop: reorder among siblings (same parent), then renumber sort_order.
+  const dropOn = async (targetKey: string) => {
+    const from = dragKey;
+    setDragKey(null);
+    setOverKey(null);
+    if (!from || from === targetKey) return;
+    const a = items.get(from);
+    const b = items.get(targetKey);
+    if (!a || !b || a.parentKey !== b.parentKey) return;
+    const siblings = (a.parentKey ? nodes.find((n) => n.item.key === a.parentKey)?.children : nodes.map((n) => n.item)) ?? [];
+    const fromIdx = siblings.findIndex((i) => i.key === from);
+    const toIdx = siblings.findIndex((i) => i.key === targetKey);
+    const order = siblings.map((i) => i.key);
+    order.splice(fromIdx, 1);
+    order.splice(toIdx, 0, from);
+    const updates = order
+      .map((key, idx) => ({ key, sort_order: (idx + 1) * 10 }))
+      .filter((u) => items.get(u.key)!.row.sort_order !== u.sort_order);
+    if (!updates.length) return;
+    const prevRows = rows;
+    setRows((prev) => prev.map((r) => {
+      const u = updates.find((x) => x.key === r.key);
+      return u ? { ...r, sort_order: u.sort_order } : r;
+    }));
+    const results = await Promise.all(
+      updates.map((u) =>
+        supabase.from(TEMPLATES_TABLE).update({ sort_order: u.sort_order }).eq('category', category).eq('key', u.key).select(COLUMNS),
+      ),
+    );
+    const failed = results.find((r) => r.error);
+    if (failed) {
+      setRows(prevRows);
+      toast.error('Ошибка: ' + failed.error!.message);
+      return;
+    }
+    const saved = results.flatMap((r) => (r.data as Row[] | null) ?? []);
+    setRows((prev) => prev.map((r) => saved.find((s) => s.key === r.key) ?? r));
+  };
+
+  const dragProps = (key: string) => ({
+    draggable: true,
+    onDragStart: (e: React.DragEvent) => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', key);
+      setDragKey(key);
+    },
+    onDragEnd: () => { setDragKey(null); setOverKey(null); },
+    onDragOver: (e: React.DragEvent) => {
+      const a = dragKey ? items.get(dragKey) : null;
+      if (!a || a.key === key || a.parentKey !== items.get(key)?.parentKey) return;
+      e.preventDefault();
+      setOverKey(key);
+    },
+    onDrop: (e: React.DragEvent) => { e.preventDefault(); dropOn(key); },
+  });
+  const dragClass = (key: string) =>
+    `${dragKey === key ? 'opacity-40' : ''} ${overKey === key && dragKey !== key ? 'shadow-[inset_0_2px_0_0_#2563eb]' : ''}`;
+
   const listName = (i: Item) => shown(i.name, lang);
 
   const renderRow = (i: Item, nested: boolean) => {
@@ -278,7 +350,8 @@ function Editor({ category }: { category: Category }) {
       <button
         key={i.key}
         onClick={() => select(i.key)}
-        className={`w-full flex items-center gap-2 text-left text-sm border-t border-slate-100 transition-colors ${
+        {...dragProps(i.key)}
+        className={`${dragClass(i.key)} w-full flex items-center gap-2 text-left text-sm border-t border-slate-100 transition-colors ${
           nested ? 'pl-8 pr-4 py-2' : 'px-4 py-2.5 font-medium'
         } ${active ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-50'}`}
       >
@@ -295,7 +368,8 @@ function Editor({ category }: { category: Category }) {
         <button
           onClick={() => clickGroup(item.key)}
           aria-expanded={open}
-          className={`w-full flex items-center gap-2 px-4 py-2.5 text-left text-sm font-semibold border-t border-slate-100 transition-colors ${
+          {...dragProps(item.key)}
+          className={`${dragClass(item.key)} w-full flex items-center gap-2 px-4 py-2.5 text-left text-sm font-semibold border-t border-slate-100 transition-colors ${
             active ? 'bg-blue-600 text-white' : open ? 'bg-slate-50 text-slate-800' : 'text-slate-800 hover:bg-slate-50'
           }`}
         >
@@ -310,12 +384,7 @@ function Editor({ category }: { category: Category }) {
   const deleteBlocked = selectedChildren > 0;
 
   return (
-    <Layout>
-      <Link to={TEMPLATES_ROOT} className="inline-flex items-center gap-1.5 mb-4 text-sm text-slate-400 hover:text-blue-600 transition-colors">
-        <ArrowLeft className="w-3.5 h-3.5" />
-        Шаблоны · {CATEGORY_LABEL[category]}
-      </Link>
-
+    <Layout title={CATEGORY_LABEL[category]} backTo={TEMPLATES_ROOT}>
       {loading ? (
         <div className="bg-white border border-slate-200 rounded-2xl p-8 space-y-3">
           {[1, 2, 3, 4].map((i) => <div key={i} className="h-12 bg-slate-100 rounded-xl animate-pulse" />)}
@@ -329,7 +398,7 @@ function Editor({ category }: { category: Category }) {
           </button>
         </div>
       ) : (
-        <div className="flex bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden" style={{ height: 'calc(100dvh - 190px)', minHeight: 480 }}>
+        <div className="flex bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden" style={{ height: 'calc(100dvh - 105px)', minHeight: 480 }}>
           {/* Accordion */}
           <div className="w-80 flex-shrink-0 border-r border-slate-200 flex flex-col">
             <div className="p-3">
@@ -409,16 +478,26 @@ function Editor({ category }: { category: Category }) {
                 />
 
                 {!selected.isGroup && (
-                  <textarea
-                    key={`${selected.key}:${lang}`}
-                    value={view.text[lang]}
-                    onChange={(e) => setDraftField('text', e.target.value)}
-                    readOnly={!draft || !canEditText}
-                    placeholder={lang === 'ru' ? '' : view.text.ru}
-                    className={`flex-1 min-h-[240px] w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-800 font-mono leading-relaxed resize-none focus:outline-none ${
-                      draft && canEditText ? 'bg-white focus:border-blue-500' : 'bg-slate-50 cursor-default'
-                    }`}
-                  />
+                  <div className="relative flex-1 min-h-[240px] flex">
+                    <textarea
+                      key={`${selected.key}:${lang}`}
+                      value={view.text[lang]}
+                      onChange={(e) => setDraftField('text', e.target.value)}
+                      readOnly={!draft || !canEditText}
+                      placeholder={lang === 'ru' ? '' : view.text.ru}
+                      className={`flex-1 w-full px-4 py-3 pr-14 border border-slate-200 rounded-xl text-sm text-slate-800 font-mono leading-relaxed resize-none focus:outline-none ${
+                        draft && canEditText ? 'bg-white focus:border-blue-500' : 'bg-slate-50 cursor-default'
+                      }`}
+                    />
+                    <button
+                      onClick={copyText}
+                      title="Копировать"
+                      aria-label="Копировать текст"
+                      className="absolute top-2.5 right-2.5 p-2 rounded-lg bg-white/90 border border-slate-200 text-slate-500 shadow-sm hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                    >
+                      {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
                 )}
               </>
             )}

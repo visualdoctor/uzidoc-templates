@@ -11,7 +11,7 @@ import { TEMPLATES_ROOT } from '@/lib/templates';
 export default function App() {
   return (
     <HashRouter>
-      <Toaster position="top-center" richColors />
+      <Toaster position="top-center" richColors duration={1000} />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path={TEMPLATES_ROOT} element={<RequireOwner><TemplatesChooser /></RequireOwner>} />
