@@ -400,7 +400,7 @@ function Editor({ category }: { category: Category }) {
       ) : (
         <div className="flex bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden" style={{ height: 'calc(100dvh - 105px)', minHeight: 480 }}>
           {/* Accordion */}
-          <div className="w-80 flex-shrink-0 border-r border-slate-200 flex flex-col">
+          <div className="w-[480px] flex-shrink-0 border-r border-slate-200 flex flex-col">
             <div className="p-3">
               <button
                 onClick={openAdd}
