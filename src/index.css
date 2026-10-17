@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    font-size: clamp(13px, 1.05vw, 16px);
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  html,
+  body {
+    background: #f8fafc;
+    color: #0f172a;
+  }
+  body {
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    line-height: 1.3;
+  }
+}

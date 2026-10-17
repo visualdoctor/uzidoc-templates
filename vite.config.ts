@@ -1,0 +1,14 @@
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react-swc';
+import path from 'path';
+
+// base './' + HashRouter: the build works from any GitHub Pages sub-path
+// (https://visualdoctor.github.io/uzidoc-templates/) without a 404 fallback.
+export default defineConfig({
+  base: './',
+  server: { host: '::', port: 8080 },
+  plugins: [react()],
+  resolve: {
+    alias: { '@': path.resolve(__dirname, './src') },
+  },
+});
